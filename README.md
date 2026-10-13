@@ -34,6 +34,8 @@ Each island has a number, shown in the corner. It's also in the address bar
   with stalactites. Inside, your eyes adjust to the dark and a lantern comes on.
 - **Forest**: pine and broadleaf woods, open meadows with wildflowers, and grass that
   sways in the wind
+- **Sea**: walk into the water to swim. You can explore the coast or head out to
+  the small islets offshore. Sheer sea cliffs can't be climbed, so swim back to a beach.
 - **Sky**: a daytime sky with drifting clouds. The sun position changes from island to island.
 
 ## Running it locally

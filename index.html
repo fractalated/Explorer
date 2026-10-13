@@ -912,31 +912,47 @@ function buildSky() {
 }
 
 // ------------------------------------------------------------------ walker
-const player = { x: 0, z: 0, ground: 0, layer: 'terrain', yaw: 0, pitch: -0.04, speed: 0, turn: 0, eyeY: 0, bob: 0, dark: 0 };
+const player = { x: 0, z: 0, ground: 0, layer: 'terrain', swim: false, yaw: 0, pitch: -0.04, speed: 0, turn: 0, eyeY: 0, bob: 0, dark: 0 };
+const SWIM_DEPTH = 1.4;   // water deeper than this and you're swimming
 function groundAt(x, z, cur) {
   const h = getH(x, z), c = caveAt(x, z);
   if (c && (Math.abs(cur - c.floor) < Math.abs(cur - h) || (c.along > 0.5 && Math.abs(cur - c.floor) < 1.6))) return { y: c.floor, layer: 'cave', c };
-  return { y: h, layer: 'terrain', c: null };
+  const swim = h < WL - SWIM_DEPTH;
+  return { y: swim ? WL - SWIM_DEPTH : h, layer: 'terrain', c: null, swim };
 }
 function tryMove(x, z) {
   const g = groundAt(x, z, player.ground);
   if (g.layer === 'terrain') {
-    if (g.y < WL - 0.45) return false;
-    if (slopeAt(x, z) < 0.55 && g.y > player.ground) return false;
-    if (Math.hypot(x, z) > 760) return false;
+    if (!g.swim && slopeAt(x, z) < 0.55 && g.y > player.ground) return false;
+    if (Math.hypot(x, z) > 1150) return false;
     if (collides(x, z, 0.35)) return false;
   }
-  if (g.y - player.ground > 0.7 || player.ground - g.y > 1.6) return false;
-  player.x = x; player.z = z; player.ground = g.y; player.layer = g.layer;
+  // can't climb sheer steps; can't drop off a ledge onto land, but can jump into deep water
+  if (g.y - player.ground > 0.7 || (player.ground - g.y > 1.6 && !g.swim)) return false;
+  player.x = x; player.z = z; player.ground = g.y; player.layer = g.layer; player.swim = !!g.swim;
   return true;
 }
+function markMainland() {
+  // flood-fill dry land outward from the island's highest point
+  const main = new Uint8Array(VERTS * VERTS), stack = new Int32Array(VERTS * VERTS);
+  let top = 0; for (let k = 1; k < H.length; k++) if (H[k] > H[top]) top = k;
+  let sp = 0; stack[sp++] = top; main[top] = 1;
+  while (sp) {
+    const k = stack[--sp], i = k % VERTS, j = (k - i) / VERTS;
+    const nb = [i > 0 ? k - 1 : -1, i < RES ? k + 1 : -1, j > 0 ? k - VERTS : -1, j < RES ? k + VERTS : -1];
+    for (const n of nb) if (n >= 0 && !main[n] && H[n] > 0.3) { main[n] = 1; stack[sp++] = n; }
+  }
+  return main;
+}
 function findSpawn() {
-  const r = mulberry32(seed ^ 0x1234);
+  const r = mulberry32(seed ^ 0x1234), main = markMainland();
+  const onMain = (x, z) => main[Math.round((z + HALF) / CELL) * VERTS + Math.round((x + HALF) / CELL)] === 1;
   for (let t = 0; t < 200; t++) {
     const a = r() * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
     for (let d = 760; d > 50; d -= 2) {
       const x = dx * d, z = dz * d, h = getH(x, z);
       if (h > 1.4) {
+        if (!onMain(x, z)) break;
         if (h < 3.5 && slopeAt(x, z) > 0.93 && !collides(x, z, 1)) {
           player.x = x; player.z = z; player.ground = h;
           player.yaw = Math.atan2(dx, dz) + (r() - 0.5) * 0.6;
@@ -969,13 +985,17 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
 const WALK_RUN = [4.6, 9.0]; // metres per second
+const SWIM_SPEED = [2.4, 4.2];
 function updatePlayer(dt) {
   const fwd = (keys.ArrowUp || keys.KeyW ? 1 : 0) - (keys.ArrowDown || keys.KeyS ? 1 : 0);
   const trn = (keys.ArrowLeft || keys.KeyA ? 1 : 0) - (keys.ArrowRight || keys.KeyD ? 1 : 0);
   const run = keys.ShiftLeft || keys.ShiftRight;
   player.turn += (trn * 1.7 - player.turn) * Math.min(1, dt * 7);
   player.yaw += player.turn * dt;
-  const target = fwd * (run ? WALK_RUN[1] : WALK_RUN[0]) * (fwd < 0 ? 0.6 : 1);
+  const depth = player.layer === 'terrain' ? WL - getH(player.x, player.z) : 0;
+  const wade = player.swim ? 1 : 1 - 0.5 * smooth(0, SWIM_DEPTH, depth);   // shallow water slows you down
+  const base = player.swim ? SWIM_SPEED[run ? 1 : 0] : WALK_RUN[run ? 1 : 0] * wade;
+  const target = fwd * base * (fwd < 0 ? 0.6 : 1);
   player.speed += (target - player.speed) * Math.min(1, dt * 4);
   const step = player.speed * dt, dx = -Math.sin(player.yaw) * step, dz = -Math.cos(player.yaw) * step;
   if (Math.abs(step) > 1e-5) {
@@ -989,10 +1009,15 @@ function updatePlayer(dt) {
   }
   const moving = Math.min(1, Math.abs(player.speed) / WALK_RUN[0]);
   player.bob += dt * Math.PI * (1.6 + Math.abs(player.speed) * 0.14) * moving;
-  const eye = player.ground + 1.68 + Math.sin(player.bob) * 0.035 * moving;
-  player.eyeY = player.eyeY === 0 ? eye : player.eyeY + (eye - player.eyeY) * Math.min(1, dt * 12);
+  const t = shared.uTime.value;
+  // swimming: head just above the surface, rising and falling with the swell
+  const eye = player.swim
+    ? WL + 0.3 + Math.sin(t * 1.3) * 0.06 + Math.sin(t * 0.83 + 1.7) * 0.04
+    : player.ground + 1.68 + Math.sin(player.bob) * 0.035 * moving;
+  player.eyeY = player.eyeY === 0 ? eye : player.eyeY + (eye - player.eyeY) * Math.min(1, dt * (player.swim ? 4 : 12));
   camera.position.set(player.x, player.eyeY, player.z);
-  camera.rotation.set(player.pitch + Math.sin(player.bob * 0.5) * 0.004 * moving, player.yaw, 0);
+  const roll = player.swim ? Math.sin(t * 0.9) * 0.02 : 0;
+  camera.rotation.set(player.pitch + (player.swim ? Math.sin(t * 1.1) * 0.012 : Math.sin(player.bob * 0.5) * 0.004 * moving), player.yaw, roll);
   // darkness inside caves: eyes adjust and a lantern glows
   const c = player.layer === 'cave' ? caveAt(player.x, player.z) : null;
   const darkT = c ? smooth(3, 18, c.along) : 0;
@@ -1032,7 +1057,7 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
   statFrames++; statTime += dt;
   if (statTime >= 0.5) {
-    statsEl.textContent = `${Math.round(statFrames / statTime)} fps · ${Math.abs(player.speed).toFixed(1)} m/s`;
+    statsEl.textContent = `${Math.round(statFrames / statTime)} fps · ${Math.abs(player.speed).toFixed(1)} m/s${player.swim ? ' · swimming' : ''}`;
     statFrames = 0; statTime = 0;
   }
 });
