@@ -22,6 +22,11 @@ to explore on foot.
 | F | Show frame rate and walking speed |
 | H | Hide the help panel |
 
+**On a phone or tablet:** borderless, semi-transparent arrows appear at the bottom of the
+screen. Use ◀ ▶ (bottom-left) to turn and ▲ ▼ (bottom-right) to walk, and double-tap and
+hold ▲ to run. Drag a finger on the scene to look around, and tap ⟳ (top-right) for a new
+island. The arrows only appear on touch devices and disappear if a keyboard is used.
+
 Each island has a number, shown in the corner. It's also in the address bar
 (`#seed=12345`), so you can bookmark or share a link to an island you like.
 
