@@ -19,6 +19,7 @@ to explore on foot.
 | Shift | Run |
 | Click and drag | Look up and down |
 | N | Generate a new island |
+| F | Show frame rate and walking speed |
 | H | Hide the help panel |
 
 Each island has a number, shown in the corner. It's also in the address bar

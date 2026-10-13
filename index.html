@@ -14,6 +14,7 @@
   #hud{position:fixed;left:16px;top:16px;color:#fff;background:rgba(8,14,12,.42);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.7;z-index:5;transition:opacity .5s;pointer-events:none}
   #hud .k{display:inline-block;min-width:14px;padding:0 5px;border:1px solid rgba(255,255,255,.45);border-radius:4px;font-size:11px;text-align:center;margin-right:6px;line-height:16px}
   #hud .seed{opacity:.55;font-size:11px;margin-top:4px}
+  #stats{position:fixed;left:16px;bottom:16px;color:#fff;background:rgba(8,14,12,.5);padding:6px 10px;border-radius:8px;font:12px ui-monospace,Menlo,monospace;z-index:5;display:none;pointer-events:none}
   #err{position:fixed;inset:0;display:none;align-items:center;justify-content:center;color:#fff;background:#200;padding:40px;text-align:center;z-index:20}
 </style>
 </head>
@@ -22,10 +23,11 @@
 <div id="hud">
   <div><span class="k">↑</span><span class="k">↓</span>walk &nbsp; <span class="k">←</span><span class="k">→</span>turn</div>
   <div><span class="k">shift</span>run &nbsp; <span class="k">drag</span>look up / down</div>
-  <div><span class="k">N</span>new island &nbsp; <span class="k">H</span>hide this</div>
+  <div><span class="k">N</span>new island &nbsp; <span class="k">F</span>speed &nbsp; <span class="k">H</span>hide this</div>
   <div class="seed" id="seedlbl"></div>
 </div>
 <div id="err"></div>
+<div id="stats"></div>
 
 <script type="importmap">
 { "imports": {
@@ -951,6 +953,7 @@ const keys = {};
 addEventListener('keydown', (e) => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
+  if (e.code === 'KeyF') { const st = document.getElementById('stats'); st.style.display = st.style.display === 'block' ? 'none' : 'block'; }
   if (e.code === 'KeyH') { const h = document.getElementById('hud'); h.style.opacity = h.style.opacity === '0' ? '1' : '0'; }
   if (e.code === 'KeyN') { location.hash = 'seed=' + Math.floor(Math.random() * 1e9); location.reload(); }
 });
@@ -1008,9 +1011,10 @@ const loading = document.getElementById('loading');
 loading.style.opacity = '0'; setTimeout(() => loading.remove(), 1000);
 
 const clock = new THREE.Clock();
+const statsEl = document.getElementById('stats'); let statFrames = 0, statTime = 0;
 const fwdV = new V3();
 renderer.setAnimationLoop(() => {
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const dt = Math.min(clock.getDelta(), 0.25);
   shared.uTime.value += dt;
   updatePlayer(dt);
   grassU.uCam.value.copy(camera.position);
@@ -1026,6 +1030,11 @@ renderer.setAnimationLoop(() => {
   renderer.toneMappingExposure = baseExposure * (1 + player.dark * 2.2);
   lantern.intensity = player.dark * 9 * lantern.userData.L;
   renderer.render(scene, camera);
+  statFrames++; statTime += dt;
+  if (statTime >= 0.5) {
+    statsEl.textContent = `${Math.round(statFrames / statTime)} fps · ${Math.abs(player.speed).toFixed(1)} m/s`;
+    statFrames = 0; statTime = 0;
+  }
 });
 </script>
 </body>
