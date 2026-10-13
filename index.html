@@ -965,13 +965,14 @@ renderer.domElement.addEventListener('pointermove', (e) => {
 });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 
+const WALK_RUN = [4.6, 9.0]; // metres per second
 function updatePlayer(dt) {
   const fwd = (keys.ArrowUp || keys.KeyW ? 1 : 0) - (keys.ArrowDown || keys.KeyS ? 1 : 0);
   const trn = (keys.ArrowLeft || keys.KeyA ? 1 : 0) - (keys.ArrowRight || keys.KeyD ? 1 : 0);
   const run = keys.ShiftLeft || keys.ShiftRight;
   player.turn += (trn * 1.7 - player.turn) * Math.min(1, dt * 7);
   player.yaw += player.turn * dt;
-  const target = fwd * (run ? 4.6 : 1.7) * (fwd < 0 ? 0.6 : 1);
+  const target = fwd * (run ? WALK_RUN[1] : WALK_RUN[0]) * (fwd < 0 ? 0.6 : 1);
   player.speed += (target - player.speed) * Math.min(1, dt * 4);
   const step = player.speed * dt, dx = -Math.sin(player.yaw) * step, dz = -Math.cos(player.yaw) * step;
   if (Math.abs(step) > 1e-5) {
@@ -983,8 +984,8 @@ function updatePlayer(dt) {
       }
     }
   }
-  const moving = Math.min(1, Math.abs(player.speed) / 1.7);
-  player.bob += Math.abs(player.speed) * dt / 0.75 * Math.PI;
+  const moving = Math.min(1, Math.abs(player.speed) / WALK_RUN[0]);
+  player.bob += dt * Math.PI * (1.6 + Math.abs(player.speed) * 0.14) * moving;
   const eye = player.ground + 1.68 + Math.sin(player.bob) * 0.035 * moving;
   player.eyeY = player.eyeY === 0 ? eye : player.eyeY + (eye - player.eyeY) * Math.min(1, dt * 12);
   camera.position.set(player.x, player.eyeY, player.z);
